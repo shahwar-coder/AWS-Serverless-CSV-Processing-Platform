@@ -1,0 +1,3 @@
+.serverless-csv/
+data/
+*.log
