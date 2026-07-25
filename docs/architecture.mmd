@@ -1,0 +1,33 @@
+flowchart TD
+    ClientRequest["Client"]
+    APIGateway["API Gateway"]
+    CreateJobLambda["Create Job Lambda<br/><br/>• Generate job_id<br/>• Create DynamoDB job record<br/>• Generate S3 presigned URL"]
+    ClientUpload["Client<br/><br/>Uploads CSV directly to S3"]
+    InputBucket["Input S3 Bucket<br/><br/>uploads/{job_id}/input.csv"]
+    ProcessingQueue["Processing SQS Queue"]
+    ProcessLambda["Process CSV Lambda<br/><br/>• Claim job<br/>• Read CSV from S3<br/>• Validate data<br/>• Process data<br/>• Write report<br/>• Update job"]
+    DeadLetterQueue["SQS Dead-Letter Queue<br/><br/>Failed work for analysis"]
+    ResultsBucket["Results S3 Bucket<br/><br/>results/{job_id}/report.json"]
+    DynamoDB["DynamoDB<br/><br/>Job status and errors"]
+    EventBridge["EventBridge<br/><br/>Domain events"]
+    SNSTopic["SNS Topic<br/><br/>Notifications"]
+    AuditLambda["Audit Lambda<br/><br/>Record audit events"]
+
+    ClientRequest -->|"POST /jobs"| APIGateway
+    APIGateway --> CreateJobLambda
+
+    CreateJobLambda -->|"Presigned PUT URL"| ClientUpload
+    CreateJobLambda -->|"Create PENDING job record"| DynamoDB
+
+    ClientUpload -->|"Upload CSV using presigned URL"| InputBucket
+    InputBucket -->|"S3 ObjectCreated event"| ProcessingQueue
+
+    ProcessingQueue -->|"Deliver message"| ProcessLambda
+    ProcessingQueue -.->|"After repeated failures"| DeadLetterQueue
+
+    ProcessLambda -->|"Write report"| ResultsBucket
+    ProcessLambda -->|"Update status and errors"| DynamoDB
+    ProcessLambda -->|"Publish processing event"| EventBridge
+
+    EventBridge -->|"Notification event"| SNSTopic
+    EventBridge -->|"Audit event"| AuditLambda
