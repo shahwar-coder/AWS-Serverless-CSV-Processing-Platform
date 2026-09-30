@@ -1,6 +1,11 @@
 .serverless-csv/
 data/
 *.log
+allure-results/
+allure-report/
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
 .env
 __pycache__
 __pycache__/

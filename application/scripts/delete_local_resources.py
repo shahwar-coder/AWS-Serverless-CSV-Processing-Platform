@@ -3,11 +3,14 @@ from botocore.exceptions import ClientError
 from application.common.aws_clients import (
     get_dynamodb_client,
     get_s3_client,
+    get_sqs_client,
 )
-
-INPUT_BUCKET = "serverless-csv-input"
-RESULTS_BUCKET = "serverless-csv-results"
-JOBS_TABLE = "serverless-csv-jobs"
+from application.common.config import (
+    INPUT_BUCKET,
+    JOBS_TABLE,
+    PROCESSING_QUEUE_NAME,
+    RESULTS_BUCKET,
+)
 
 
 def delete_bucket_if_exists(bucket_name: str) -> None:
@@ -51,10 +54,29 @@ def delete_jobs_table_if_exists(table_name: str) -> None:
     print(f"Table deleted: {table_name}")
 
 
+def delete_processing_queue_if_exists() -> None:
+    """Delete the local processing queue only when it exists."""
+    sqs_client = get_sqs_client()
+    try:
+        queue_url = sqs_client.get_queue_url(QueueName=PROCESSING_QUEUE_NAME)["QueueUrl"]
+    except ClientError as error:
+        if error.response["Error"]["Code"] not in (
+            "AWS.SimpleQueueService.NonExistentQueue",
+            "QueueDoesNotExist",
+        ):
+            raise
+        print(f"Queue does not exist: {PROCESSING_QUEUE_NAME}")
+        return
+
+    sqs_client.delete_queue(QueueUrl=queue_url)
+    print(f"Queue deleted: {PROCESSING_QUEUE_NAME}")
+
+
 def main() -> None:
     delete_bucket_if_exists(INPUT_BUCKET)
     delete_bucket_if_exists(RESULTS_BUCKET)
     delete_jobs_table_if_exists(JOBS_TABLE)
+    delete_processing_queue_if_exists()
 
 
 if __name__ == "__main__":
